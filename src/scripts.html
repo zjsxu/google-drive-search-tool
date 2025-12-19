@@ -1,0 +1,200 @@
+<script>
+/**
+ * 额外的JavaScript功能
+ * 可以通过include函数引入到主HTML文件中
+ */
+
+/**
+ * 实时验证文件夹ID
+ */
+function validateFolderIdRealtime() {
+    const folderIdInput = document.getElementById('folderId');
+    const folderId = folderIdInput.value.trim();
+    
+    if (folderId.length > 10) { // 基本长度检查
+        // 调用后端验证
+        google.script.run
+            .withSuccessHandler(function(result) {
+                if (result.success) {
+                    showValidationSuccess('文件夹验证成功: ' + result.data.folderName);
+                } else {
+                    showValidationError(result.error);
+                }
+            })
+            .withFailureHandler(function(error) {
+                showValidationError('验证失败: ' + error.message);
+            })
+            .validateFolderAccess(folderId);
+    }
+}
+
+/**
+ * 显示验证成功信息
+ */
+function showValidationSuccess(message) {
+    // 可以在这里添加成功提示的UI逻辑
+    console.log('验证成功:', message);
+}
+
+/**
+ * 显示验证错误信息
+ */
+function showValidationError(message) {
+    // 可以在这里添加错误提示的UI逻辑
+    console.log('验证错误:', message);
+}
+
+/**
+ * 获取并显示支持的文件类型
+ */
+function loadSupportedFileTypes() {
+    google.script.run
+        .withSuccessHandler(function(result) {
+            if (result.success) {
+                displaySupportedFileTypes(result.data);
+            }
+        })
+        .withFailureHandler(function(error) {
+            console.error('获取文件类型失败:', error);
+        })
+        .getWebAppSupportedFileTypes();
+}
+
+/**
+ * 显示支持的文件类型
+ */
+function displaySupportedFileTypes(fileTypes) {
+    // 可以在界面上显示支持的文件类型列表
+    console.log('支持的文件类型:', fileTypes);
+}
+
+/**
+ * 导出搜索结果为CSV
+ */
+function exportResultsToCSV(results) {
+    if (!results || results.length === 0) {
+        alert('没有可导出的搜索结果');
+        return;
+    }
+    
+    const headers = ['文件名', '文件类型', '文件夹路径', '最后修改时间', '文件链接'];
+    const csvContent = [
+        headers.join(','),
+        ...results.map(result => [
+            `"${result.fileName}"`,
+            `"${result.fileType || 'Unknown'}"`,
+            `"${result.folderPath}"`,
+            `"${formatDate(result.lastModified)}"`,
+            `"${result.fileUrl}"`
+        ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `搜索结果_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+/**
+ * 复制搜索结果到剪贴板
+ */
+function copyResultsToClipboard(results) {
+    if (!results || results.length === 0) {
+        alert('没有可复制的搜索结果');
+        return;
+    }
+    
+    const text = results.map(result => 
+        `${result.fileName} - ${result.fileUrl}`
+    ).join('\n');
+    
+    navigator.clipboard.writeText(text).then(function() {
+        alert('搜索结果已复制到剪贴板');
+    }, function(err) {
+        console.error('复制失败:', err);
+        alert('复制失败，请手动选择并复制');
+    });
+}
+
+/**
+ * 保存搜索历史
+ */
+function saveSearchHistory(folderId, keyword, resultCount) {
+    const history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+    const searchRecord = {
+        folderId: folderId,
+        keyword: keyword,
+        resultCount: resultCount,
+        timestamp: new Date().toISOString()
+    };
+    
+    history.unshift(searchRecord);
+    
+    // 只保留最近20条记录
+    if (history.length > 20) {
+        history.splice(20);
+    }
+    
+    localStorage.setItem('searchHistory', JSON.stringify(history));
+}
+
+/**
+ * 加载搜索历史
+ */
+function loadSearchHistory() {
+    const history = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+    return history;
+}
+
+/**
+ * 显示搜索历史
+ */
+function displaySearchHistory() {
+    const history = loadSearchHistory();
+    if (history.length === 0) {
+        return;
+    }
+    
+    // 可以在这里添加显示搜索历史的UI逻辑
+    console.log('搜索历史:', history);
+}
+
+/**
+ * 从搜索历史中选择
+ */
+function selectFromHistory(folderId, keyword) {
+    document.getElementById('folderId').value = folderId;
+    document.getElementById('keyword').value = keyword;
+}
+
+/**
+ * 清空搜索历史
+ */
+function clearSearchHistory() {
+    localStorage.removeItem('searchHistory');
+    alert('搜索历史已清空');
+}
+
+/**
+ * 页面初始化时加载历史记录
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    // 加载搜索历史
+    displaySearchHistory();
+    
+    // 加载支持的文件类型
+    loadSupportedFileTypes();
+    
+    // 为文件夹ID输入框添加实时验证（延迟执行）
+    let validationTimeout;
+    document.getElementById('folderId').addEventListener('input', function() {
+        clearTimeout(validationTimeout);
+        validationTimeout = setTimeout(validateFolderIdRealtime, 1000);
+    });
+});
+</script>

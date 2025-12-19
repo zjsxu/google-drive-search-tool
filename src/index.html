@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive 全文检索工具</title>
+    <?!= include('styles'); ?>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #1a73e8;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #1a73e8;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 30px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: #1a73e8;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #1557b0;
+        }
+        
+        .btn-secondary {
+            background-color: #f8f9fa;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e9ecef;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1a73e8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .results {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .results-header {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .results-table th,
+        .results-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .results-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        
+        .results-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .file-link {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        
+        .file-link:hover {
+            text-decoration: underline;
+        }
+        
+        .error {
+            background-color: #ffeaa7;
+            color: #d63031;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .success {
+            background-color: #d1f2eb;
+            color: #00b894;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .help-text {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .advanced-options {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .toggle-advanced {
+            background: none;
+            border: none;
+            color: #1a73e8;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Google Drive 全文检索工具</h1>
+        
+        <form id="searchForm">
+            <div class="form-group">
+                <label for="folderId">文件夹ID *</label>
+                <input type="text" id="folderId" name="folderId" required 
+                       placeholder="请输入Google Drive文件夹ID">
+                <div class="help-text">
+                    在Google Drive中打开目标文件夹，从URL中复制文件夹ID
+                    <br>例如：https://drive.google.com/drive/folders/<strong>1ABC...XYZ</strong>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="keyword">搜索关键词 *</label>
+                <input type="text" id="keyword" name="keyword" required 
+                       placeholder="请输入要搜索的关键词">
+                <div class="help-text">
+                    工具将在文件内容中搜索包含此关键词的所有文档
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="outputFormat">输出格式</label>
+                <select id="outputFormat" name="outputFormat">
+                    <option value="logger">控制台日志</option>
+                    <option value="sheet">Google Sheet表格</option>
+                </select>
+                <div class="help-text">
+                    选择搜索结果的输出方式
+                </div>
+            </div>
+            
+            <button type="button" class="toggle-advanced" onclick="toggleAdvancedOptions()">
+                显示高级选项 ▼
+            </button>
+            
+            <div class="advanced-options" id="advancedOptions">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="useIncremental" name="useIncremental">
+                    <label for="useIncremental">使用增量搜索（适用于大量文件）</label>
+                </div>
+                
+                <div class="form-group">
+                    <label for="maxResults">最大结果数量（可选）</label>
+                    <input type="text" id="maxResults" name="maxResults" 
+                           placeholder="留空表示不限制">
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" class="btn-primary">开始搜索</button>
+                <button type="button" class="btn-secondary" onclick="clearForm()">清空表单</button>
+            </div>
+        </form>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>正在搜索中，请稍候...</p>
+        </div>
+        
+        <div class="error" id="errorMessage"></div>
+        <div class="success" id="successMessage"></div>
+        
+        <div class="results" id="results">
+            <div class="results-header">
+                <h3>搜索结果</h3>
+                <p id="resultsCount"></p>
+            </div>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let advancedVisible = false;
+        
+        function toggleAdvancedOptions() {
+            const advancedOptions = document.getElementById('advancedOptions');
+            const toggleButton = document.querySelector('.toggle-advanced');
+            
+            advancedVisible = !advancedVisible;
+            
+            if (advancedVisible) {
+                advancedOptions.style.display = 'block';
+                toggleButton.textContent = '隐藏高级选项 ▲';
+            } else {
+                advancedOptions.style.display = 'none';
+                toggleButton.textContent = '显示高级选项 ▼';
+            }
+        }
+        
+        function clearForm() {
+            document.getElementById('searchForm').reset();
+            hideMessages();
+            hideResults();
+        }
+        
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            hideMessages();
+            hideResults();
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            hideLoading();
+        }
+        
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            hideLoading();
+        }
+        
+        function hideMessages() {
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+        
+        function hideResults() {
+            document.getElementById('results').style.display = 'none';
+        }
+        
+        function showResults(results, outputFormat) {
+            const resultsDiv = document.getElementById('results');
+            const resultsCount = document.getElementById('resultsCount');
+            const resultsContent = document.getElementById('resultsContent');
+            
+            resultsCount.textContent = `找到 ${results.length} 个匹配文件`;
+            
+            if (outputFormat === 'sheet') {
+                resultsContent.innerHTML = `
+                    <p>搜索结果已保存到Google Sheet表格中。</p>
+                    <p>请查看您的Google Drive中新创建的表格文件。</p>
+                    <div class="search-stats">
+                        <div class="stat-card">
+                            <div class="stat-number">${results.length}</div>
+                            <div class="stat-label">匹配文件</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 显示结果表格
+                let tableHTML = `
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>文件名</th>
+                                <th>文件类型</th>
+                                <th>文件夹路径</th>
+                                <th>最后修改</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                results.forEach(result => {
+                    tableHTML += `
+                        <tr>
+                            <td>${escapeHtml(result.fileName)}</td>
+                            <td>${escapeHtml(result.fileType || 'Unknown')}</td>
+                            <td>${escapeHtml(result.folderPath)}</td>
+                            <td>${formatDate(result.lastModified)}</td>
+                            <td>
+                                <a href="${result.fileUrl}" target="_blank" class="file-link">
+                                    打开文件
+                                </a>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tableHTML += `
+                        </tbody>
+                    </table>
+                `;
+                
+                resultsContent.innerHTML = tableHTML;
+            }
+            
+            resultsDiv.style.display = 'block';
+            hideLoading();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN');
+        }
+        
+        // 表单提交处理
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const folderId = formData.get('folderId').trim();
+            const keyword = formData.get('keyword').trim();
+            const outputFormat = formData.get('outputFormat');
+            const useIncremental = formData.get('useIncremental') === 'on';
+            const maxResults = formData.get('maxResults');
+            
+            // 基本验证
+            if (!folderId || !keyword) {
+                showError('请填写文件夹ID和搜索关键词');
+                return;
+            }
+            
+            // 构建搜索选项
+            const options = {
+                outputFormat: outputFormat,
+                useIncremental: useIncremental
+            };
+            
+            if (maxResults && !isNaN(parseInt(maxResults))) {
+                options.maxResults = parseInt(maxResults);
+            }
+            
+            // 显示加载状态
+            showLoading();
+            
+            // 调用后端搜索函数
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    if (result.success) {
+                        if (outputFormat === 'sheet') {
+                            showSuccess('搜索完成！结果已保存到Google Sheet表格中。');
+                        } else {
+                            showResults(result.data, outputFormat);
+                        }
+                    } else {
+                        showError(result.error || '搜索过程中发生未知错误');
+                    }
+                })
+                .withFailureHandler(function(error) {
+                    showError('搜索失败: ' + error.message);
+                })
+                .performWebAppSearch(folderId, keyword, options);
+        });
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 可以在这里添加页面初始化逻辑
+            console.log('Google Drive 搜索工具界面已加载');
+        });
+    </script>
+</body>
+</html>
